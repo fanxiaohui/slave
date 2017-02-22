@@ -1,0 +1,6 @@
+ps |grep "slave" |grep -v grep
+if[$? -ne 0]
+then
+  cd/home/root/
+  ./slave&
+fi
