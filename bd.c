@@ -14,6 +14,7 @@
 #include "bd.h"
 #include "log.h"
 #include "global.h"
+#include "uart.h"
 
 int fd_bd;
 pthread_t bd_recv_thread_id;
@@ -33,7 +34,7 @@ int bd_init(void)
 {
 	char file_name[100];
 
-	//ÒÔ×·¼Ó·½Ê½´ò¿ªÊý¾Ý¼ÇÂ¼ÎÄ¼þ
+	//ï¿½ï¿½×·ï¿½Ó·ï¿½Ê½ï¿½ï¿½ï¿½ï¿½ï¿½Ý¼ï¿½Â¼ï¿½Ä¼ï¿½
 	sprintf(file_name, "BD%02d%02d_%02d%02d%02d.dat", datetime_now.month, datetime_now.day,
 		datetime_now.hour, datetime_now.minute, datetime_now.second);
 
@@ -41,12 +42,12 @@ int bd_init(void)
 	fp_bd = fopen(file_name, "wb+");
 	if (NULL == fp_bd)
 	{
-		sprintf(logmsg, "Open BD rec file failed: %d", fp_bd);
+		sprintf(logmsg, "Open BD rec file failed: %d", (int)fp_bd);
 		write_log(logmsg);
-		bd_file_opened = 0;//Ã»ÓÐÕý³£´ò¿ª
+		bd_file_opened = 0;//Ã»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	}
 
-	//³õÊ¼»¯´®¿Ú
+	//ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	fd_bd = open(DEV_BD, O_RDWR);
 	if (fd_bd < 0)
 	{
@@ -57,15 +58,15 @@ int bd_init(void)
 	set_parameter(fd_bd, 8, 1, 'N'); //8 data bits, 1 stop bit, no parity
 	sprintf(logmsg, "BD init: %d bps", BD_BAUDRATE);
 	write_log(logmsg);
-	pthread_create(&bd_recv_thread_id, NULL, (void*)bd_recv_thread, NULL);//BD ½ÓÊÕÊý¾ÝÏß³Ì
-	pthread_create(&bd_send_thread_id, NULL, (void*)bd_send_thread, NULL);//BD ·¢ËÍÊý¾ÝÏß³Ì
+	pthread_create(&bd_recv_thread_id, NULL, (void*)bd_recv_thread, NULL);//BD ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ß³ï¿½
+	pthread_create(&bd_send_thread_id, NULL, (void*)bd_send_thread, NULL);//BD ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ß³ï¿½
 }
 
 int bd_send_cmd(unsigned char cmd_id)
 {
-	unsigned short len = 0;//°ü³¤¶È
-	char sbuf[200];//°üÐÅÏ¢»º³åÇø
-	unsigned char checksum;//Ð£ÑéºÍ
+	unsigned short len = 0;//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+	char sbuf[200];//ï¿½ï¿½ï¿½ï¿½Ï¢ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+	unsigned char checksum;//Ð£ï¿½ï¿½ï¿½
 	int i = 0;
 	int j = 0;
 
@@ -73,20 +74,20 @@ int bd_send_cmd(unsigned char cmd_id)
 	{
 	case CMD_GLJC:
 		len = 12;
-		strncpy(sbuf, "$GLJC", 5);//°üID
-		sbuf[5] = (len >> 8) & 0xff;//°ü³¤¶È
+		strncpy(sbuf, "$GLJC", 5);//ï¿½ï¿½ID
+		sbuf[5] = (len >> 8) & 0xff;//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 		sbuf[6] = (len)& 0xff;
-		sbuf[7] = 0;//±¾»úµØÖ·
+		sbuf[7] = 0;//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö·
 		sbuf[8] = 0;
 		sbuf[9] = 0;
-		sbuf[10] = 1;//µ¥´ÎÊä³ö		
+		sbuf[10] = 1;//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½		
 		break;
 	case CMD_ICJC:
 		len = 12;
-		strncpy(sbuf, "$ICJC", 5);//°üID
-		sbuf[5] = (len >> 8) & 0xff;//°ü³¤¶È
+		strncpy(sbuf, "$ICJC", 5);//ï¿½ï¿½ID
+		sbuf[5] = (len >> 8) & 0xff;//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 		sbuf[6] = (len)& 0xff;
-		sbuf[10] = 1;//µ¥´ÎÊä³ö		
+		sbuf[10] = 1;//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½		
 		break;
 	default:;
 	}
@@ -99,7 +100,7 @@ int bd_send_cmd(unsigned char cmd_id)
 	sbuf[len - 1] = checksum;
 	write(fd_bd, sbuf, len);
 
-	//ÏÔÊ¾Êý¾Ý
+	//ï¿½ï¿½Ê¾ï¿½ï¿½ï¿½ï¿½
 	sprintf(logmsg,">>: ");
 	for (j = 0; j < len; j++) sprintf(&logmsg[4+j*3],"%02x ", sbuf[j]);
 	write_log(logmsg);
@@ -107,33 +108,33 @@ int bd_send_cmd(unsigned char cmd_id)
 
 int bd_send_data(unsigned short len, unsigned char *buf)
 {
-	unsigned short pack_len = 0;//°ü³¤¶È
+	unsigned short pack_len = 0;//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	unsigned short msg_len_bits = 0;
 	unsigned int _addr;
-	char sbuf[200];//°üÐÅÏ¢»º³åÇø
-	unsigned char checksum;//Ð£ÑéºÍ
+	char sbuf[200];//ï¿½ï¿½ï¿½ï¿½Ï¢ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+	unsigned char checksum;//Ð£ï¿½ï¿½ï¿½
 	int i = 0;
 	int j = 0;
 
 	pack_len = 18 + len;
-	strncpy(sbuf, "$TXSQ", 5);//°üID
-	sbuf[5] = (pack_len >> 8) & 0xff;//°ü³¤¶È
+	strncpy(sbuf, "$TXSQ", 5);//ï¿½ï¿½ID
+	sbuf[5] = (pack_len >> 8) & 0xff;//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	sbuf[6] = (pack_len)& 0xff;
 	_addr = _BD_ID_AP;
-	sbuf[7] = (_addr >> 16) & 0xff;//±¾»úµØÖ·
+	sbuf[7] = (_addr >> 16) & 0xff;//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö·
 	sbuf[8] = (_addr >> 8) & 0xff;
 	sbuf[9] = _addr & 0xff;
-	sbuf[10] = 0x46;//ÐÅÏ¢Àà±ðÎª0x46
+	sbuf[10] = 0x46;//ï¿½ï¿½Ï¢ï¿½ï¿½ï¿½Îª0x46
 	_addr = _BD_ID_GCS;
-	sbuf[11] = (_addr >> 16) & 0xff;//¶Ô·½µØÖ·
+	sbuf[11] = (_addr >> 16) & 0xff;//ï¿½Ô·ï¿½ï¿½ï¿½Ö·
 	sbuf[12] = (_addr >> 8) & 0xff;
 	sbuf[13] = (_addr)& 0xff;
 
 	msg_len_bits = len * 8;
-	sbuf[14] = (msg_len_bits >> 8) & 0xff;//°ü³¤¶È
+	sbuf[14] = (msg_len_bits >> 8) & 0xff;//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	sbuf[15] = (msg_len_bits)& 0xff;
 
-	sbuf[16] = 0;//²»ÐèÒªÓ¦´ð
+	sbuf[16] = 0;//ï¿½ï¿½ï¿½ï¿½ÒªÓ¦ï¿½ï¿½
 	memcpy(&sbuf[17], buf, pack_len);
 
 	checksum = 0;
@@ -144,7 +145,7 @@ int bd_send_data(unsigned short len, unsigned char *buf)
 	sbuf[pack_len - 1] = checksum;
 	write(fd_bd, sbuf, pack_len);
 
-	if (bd_file_opened == 1)//±£´æ±±¶·Êý¾Ý
+	if (bd_file_opened == 1)//ï¿½ï¿½ï¿½æ±±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	{
 		memcpy(&bd_rec._datatime, &datetime_now, sizeof(datetime_now));
 		bd_rec.type = BD_REC_DATA_SEND;
@@ -153,7 +154,7 @@ int bd_send_data(unsigned short len, unsigned char *buf)
 		fwrite(&bd_rec, sizeof(bd_rec), 1, fp_bd);
 	}
 
-	//ÏÔÊ¾Êý¾Ý
+	//ï¿½ï¿½Ê¾ï¿½ï¿½ï¿½ï¿½
 	sprintf(logmsg, ">>: ");
 	for (j = 0; j < pack_len; j++) sprintf(&logmsg[4+j*3], "%02x ", sbuf[j]);
 	write_log(logmsg);
@@ -179,24 +180,24 @@ void bd_recv_thread(void)
 	{
 		nread = read(fd_bd, buf, 500);
 
-		if (nread > 0)//ÊÕµ½Êý¾Ý
+		if (nread > 0)//ï¿½Õµï¿½ï¿½ï¿½ï¿½ï¿½
 		{
 			memcpy(&rcvQ[rcvQTail], buf, nread);
 			rcvQTail += nread;
 
-			if (rcvQTail >= 12)//´óÓÚ×îÐ¡°üµÄ³¤¶È£¬¿ÉÒÔ½øÐÐ´¦Àí
+			if (rcvQTail >= 12)//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð¡ï¿½ï¿½ï¿½Ä³ï¿½ï¿½È£ï¿½ï¿½ï¿½ï¿½Ô½ï¿½ï¿½Ð´ï¿½ï¿½ï¿½
 			{
-				for (i = 0; i < (rcvQTail - 7); i++) //rcvQTail-7:³ýÈ¥Í·²¿IDµÄ5¸ö×Ö½ÚºÍ³¤¶ÈµÄ2¸ö×Ö½Ú
+				for (i = 0; i < (rcvQTail - 7); i++) //rcvQTail-7:ï¿½ï¿½È¥Í·ï¿½ï¿½IDï¿½ï¿½5ï¿½ï¿½ï¿½Ö½ÚºÍ³ï¿½ï¿½Èµï¿½2ï¿½ï¿½ï¿½Ö½ï¿½
 				{
 					if ((strncmp(&rcvQ[i], STR_GLZK, 5) == 0)
-						|| (strncmp(&rcvQ[i], STR_TXXX, 5) == 0)//Í¨ÐÅÐÅÏ¢
-						|| (strncmp(&rcvQ[i], STR_ICXX, 5) == 0)//ICÐÅÏ¢
-						|| (strncmp(&rcvQ[i], STR_FKXX, 5) == 0)//·´À¡ÐÅÏ¢
-						)//°üÍ·ÕýÈ·
+						|| (strncmp(&rcvQ[i], STR_TXXX, 5) == 0)//Í¨ï¿½ï¿½ï¿½ï¿½Ï¢
+						|| (strncmp(&rcvQ[i], STR_ICXX, 5) == 0)//ICï¿½ï¿½Ï¢
+						|| (strncmp(&rcvQ[i], STR_FKXX, 5) == 0)//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï¢
+						)//ï¿½ï¿½Í·ï¿½ï¿½È·
 					{
 						//memcpy(&pack_len,&rcvQ[i+5],2);
 						pack_len = ((rcvQ[i + 5] << 8) & 0xff00) | (rcvQ[i + 6] & 0xff);
-						if ((rcvQTail - i) >= pack_len)//»º³åÇøÄÚÊý¾Ý³¤¶È³¬¹ý°ü³¤¶È
+						if ((rcvQTail - i) >= pack_len)//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ý³ï¿½ï¿½È³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 						{
 							memcpy(recvpackbuf, &rcvQ[i], pack_len);
 							checksum = 0;
@@ -204,16 +205,16 @@ void bd_recv_thread(void)
 							{
 								checksum ^= recvpackbuf[j];
 							}
-							if (checksum == recvpackbuf[pack_len - 1])//°üÐ£ÑéÕýÈ·£¬±íÊ¾ÊÕµ½ÕýÈ·Êý¾Ý°ü£¬¿ÉÒÔ½øÐÐ½âÎö
+							if (checksum == recvpackbuf[pack_len - 1])//ï¿½ï¿½Ð£ï¿½ï¿½ï¿½ï¿½È·ï¿½ï¿½ï¿½ï¿½Ê¾ï¿½Õµï¿½ï¿½ï¿½È·ï¿½ï¿½ï¿½Ý°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô½ï¿½ï¿½Ð½ï¿½ï¿½ï¿½
 							{
-								//½âÎöÍê£¬É¾³ýÒÑ½âÎöµÄÊý¾Ý
+								//ï¿½ï¿½ï¿½ï¿½ï¿½ê£¬É¾ï¿½ï¿½ï¿½Ñ½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 								memcpy(rcvQ, &rcvQ[i + pack_len], (rcvQTail - (i + pack_len)));
 								rcvQTail = rcvQTail - (i + pack_len);
 
-								//´¦ÀíÊý¾Ý
+								//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 								bd_recv_process(pack_len,recvpackbuf);
 
-								//±£´æ±±¶·²Ù×÷
+								//ï¿½ï¿½ï¿½æ±±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 								sprintf(logmsg, "<<: ");
 								for (j = 0; j < pack_len; j++) sprintf(&logmsg[4+j*3], "%02x ", recvpackbuf[j]);
 								write_log(logmsg);
@@ -248,12 +249,12 @@ void bd_recv_process(unsigned short len, unsigned char *buf)
 			memcpy(&data_len,&buf[16],2);
 			printf("BD Recv data len: 0x%x(%d)", data_len, data_len);
 
-			if (data_len <= 80)//×î´ó80×Ö½Ú
+			if (data_len <= 80)//ï¿½ï¿½ï¿½80ï¿½Ö½ï¿½
 			{
 				memcpy(&bd_gcs2ap, &buf[18], data_len);
 			}
-			//±£´æÊý¾Ý
-			if (bd_file_opened == 1)//±£´æ±±¶·Êý¾Ý
+			//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+			if (bd_file_opened == 1)//ï¿½ï¿½ï¿½æ±±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 			{
 				memcpy(&bd_rec._datatime, &datetime_now, sizeof(datetime_now));
 				bd_rec.type = BD_REC_DATA_RECV;

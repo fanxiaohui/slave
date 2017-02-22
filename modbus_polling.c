@@ -1,5 +1,5 @@
 /////////////////////////////////////////////////////////////////////////////////////////////
-// modbus_polling.c - ÂÖÑ¯RS485×ÜÏßÉÏµÄÉè±¸£¬°üÀ¨ÇÐ»»Æ÷ºÍ³äµç»ú
+// modbus_polling.c - ï¿½ï¿½Ñ¯RS485ï¿½ï¿½ï¿½ï¿½ï¿½Ïµï¿½ï¿½è±¸ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð»ï¿½ï¿½ï¿½ï¿½Í³ï¿½ï¿½ï¿½
 //
 //
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -18,6 +18,8 @@
 #include "modbus_polling.h"
 #include "log.h"
 #include "global.h"
+#include "crc.h"
+#include "uart.h"
 
 //switcher macro define
 #define SW_ST_DISCHARGING 0x55
@@ -56,10 +58,10 @@ T_CHARGER_DATA charger_state;
 T_CHARGER_DATA charger_state_tmp;
 T_CHARGER_CFG charger_config;
 
-T_MODBUS_PARA _modbus;//MODBUSÍ¨ÐÅ¹ÜÀíËùÐèµÄÊý¾ÝÈ«°üº¬ÔÚÕâ¸ö½á¹¹ÖÐ
+T_MODBUS_PARA _modbus;//MODBUSÍ¨ï¿½Å¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È«ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½á¹¹ï¿½ï¿½
 T_MODBUS_ERROR modbus_error;
 
-//modbus×ÜÏßUART(RS485)¶Ë¿Ú
+//modbusï¿½ï¿½ï¿½ï¿½UART(RS485)ï¿½Ë¿ï¿½
 int fd_modbus;
 
 pthread_t modbus_recv_thread_id;
@@ -67,25 +69,25 @@ pthread_t modbus_master_thread_id;
 sem_t sem_modbus;
 unsigned char charger_workchan_wish12 = 0;
 
-int switcher_sm;//ÇÐ»»Æ÷×´Ì¬»ú
-int charger_sm;//³äµç»ú×´Ì¬»ú
-int charger_channel;//³äµçÍ¨µÀ
+int switcher_sm;//ï¿½Ð»ï¿½ï¿½ï¿½×´Ì¬ï¿½ï¿½
+int charger_sm;//ï¿½ï¿½ï¿½ï¿½×´Ì¬ï¿½ï¿½
+int charger_channel;//ï¿½ï¿½ï¿½Í¨ï¿½ï¿½
 
-//»ñÈ¡ÇÐ»»Æ÷µÄ×´Ì¬£¬°üÀ¨µç³ØµçÑ¹µÈ
-//IN: timeout_ms µÈ´ýÊ±¼ä[ms]£¬×îÐ¡·Ö±æÂÊÎª10ms
-//OUT: Èç¹û·µ»ØÖµÎª1£¬Ôòdata ·µ»Øµç³Ø×´Ì¬£¬·ñÔò·µ»ØÊý¾ÝÎÞÐ§
+//ï¿½ï¿½È¡ï¿½Ð»ï¿½ï¿½ï¿½ï¿½ï¿½×´Ì¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Øµï¿½Ñ¹ï¿½ï¿½
+//IN: timeout_ms ï¿½È´ï¿½Ê±ï¿½ï¿½[ms]ï¿½ï¿½ï¿½ï¿½Ð¡ï¿½Ö±ï¿½ï¿½ï¿½Îª10ms
+//OUT: ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÖµÎª1ï¿½ï¿½ï¿½ï¿½data ï¿½ï¿½ï¿½Øµï¿½ï¿½×´Ì¬ï¿½ï¿½ï¿½ï¿½ï¿½ò·µ»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð§
 
-//modbus½ÓÊÕÏß³Ì£¬ÓÃÓÚÔÚRS485×ÜÏßÉÏ½ÓÊÕËùÓÐmodbusÊý¾Ý
+//modbusï¿½ï¿½ï¿½ï¿½ï¿½ß³Ì£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½RS485ï¿½ï¿½ï¿½ï¿½ï¿½Ï½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½modbusï¿½ï¿½ï¿½ï¿½
 void modbus_recv_thread(void);
-//modbusÂÖÑ¯Ïß³Ì£¬ÓÉÖ÷Ïß³ÌÖÐµÄÐÅºÅÁ¿¿ØÖÆÂÖÑ¯ÖÜÆÚ
+//modbusï¿½ï¿½Ñ¯ï¿½ß³Ì£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ß³ï¿½ï¿½Ðµï¿½ï¿½Åºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ñ¯ï¿½ï¿½ï¿½ï¿½
 void modbus_master_thread(void);
-//ÉèÖÃÇÐ»»Æ÷²ÎÊýºÍ¹¤×÷×´Ì¬
+//ï¿½ï¿½ï¿½ï¿½ï¿½Ð»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¹ï¿½ï¿½ï¿½×´Ì¬
 int modbus_set_switcher(unsigned short addr, unsigned short value, int timeout_ms);
-//¶ÁÈ¡ÇÐ»»Æ÷µÄ×´Ì¬
+//ï¿½ï¿½È¡ï¿½Ð»ï¿½ï¿½ï¿½ï¿½ï¿½×´Ì¬
 int modbus_get_switcher_state(T_SWITCHER_DATA* data, int timeout_ms);
-//ÉèÖÃ³äµç»ú²ÎÊýºÍ¹¤×÷×´Ì¬
+//ï¿½ï¿½ï¿½Ã³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¹ï¿½ï¿½ï¿½×´Ì¬
 int modbus_set_charger(unsigned short addr, unsigned short value, int timeout_ms);
-//»ñÈ¡³äµç»úµÄ×´Ì¬
+//ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×´Ì¬
 int modbus_get_charger_state(T_CHARGER_DATA* data, int timeout_ms);
 //
 void modbus_polling();
@@ -93,9 +95,9 @@ void modbus_polling();
 
 int modbus_init()
 {
-	//MODBUS×ÜÏßÉÏµÄÊý¾Ý¼ÇÂ¼È«²¿·ÅÔÚÈ«¾Ö¼ÇÂ¼ÖÐ,Òò´Ë£¬ÔÚ³õÊ¼»¯Ê±²»ÔÙÐÂ´´½¨¼ÇÂ¼ÎÄ¼þ
+	//MODBUSï¿½ï¿½ï¿½ï¿½ï¿½Ïµï¿½ï¿½ï¿½ï¿½Ý¼ï¿½Â¼È«ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È«ï¿½Ö¼ï¿½Â¼ï¿½ï¿½,ï¿½ï¿½Ë£ï¿½ï¿½Ú³ï¿½Ê¼ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½Â´ï¿½ï¿½ï¿½ï¿½ï¿½Â¼ï¿½Ä¼ï¿½
 
-	//³õÊ¼»¯MODBUS´®¿Ú
+	//ï¿½ï¿½Ê¼ï¿½ï¿½MODBUSï¿½ï¿½ï¿½ï¿½
 	fd_modbus = open(DEV_MODBUS, O_RDWR);
 	if (fd_modbus < 0)
 	{
@@ -105,8 +107,8 @@ int modbus_init()
 	}
 	set_speed(fd_modbus, 9600); //set serial port baud
 	set_parameter(fd_modbus, 8, 1, 'N'); //8 data bits, 1 stop bit, no parity
-	pthread_create(&modbus_recv_thread_id, NULL, (void*)modbus_recv_thread, NULL);//RS485 ½ÓÊÕÏß³Ì
-	pthread_create(&modbus_master_thread_id, NULL, (void*)modbus_master_thread, NULL);//Modbus Ö÷¿ØÏß³Ì
+	pthread_create(&modbus_recv_thread_id, NULL, (void*)modbus_recv_thread, NULL);//RS485 ï¿½ï¿½ï¿½ï¿½ï¿½ß³ï¿½
+	pthread_create(&modbus_master_thread_id, NULL, (void*)modbus_master_thread, NULL);//Modbus ï¿½ï¿½ï¿½ï¿½ï¿½ß³ï¿½
 	sprintf(logmsg, "MODBUS init: 9600 bps");
 	write_log(logmsg);
 
@@ -169,7 +171,7 @@ void modbus_recv_thread(void)
 				mb_buf[_modbus.recv_cnt] = buf[i];
 				_modbus.recv_cnt++;
 
-				if (_modbus.recv_cnt >= _modbus.recv_len)//recv_len:²»º¬CRCµÄ°ü³¤¶È
+				if (_modbus.recv_cnt >= _modbus.recv_len)//recv_len:ï¿½ï¿½ï¿½ï¿½CRCï¿½Ä°ï¿½ï¿½ï¿½ï¿½ï¿½
 				{
 					_modbus.recv_sm = SM_MODBUS_RECV_CRC1;
 				}
@@ -185,12 +187,12 @@ void modbus_recv_thread(void)
 				crc_tmp = crc16(mb_buf, _modbus.recv_cnt);
 
 				//printf("recv crc: %x,%x; calc: %x,%x\n",(crc_tmp >> 8) & 0xff,(crc_tmp & 0xff),_crc[0],_crc[1]);
-				if ((_crc[0] == ((crc_tmp >> 8) & 0xff)) && (_crc[1] == (crc_tmp & 0xff)))//½âÎöÕýÈ·£¬¿É´¦ÀíÊý¾Ý
+				if ((_crc[0] == ((crc_tmp >> 8) & 0xff)) && (_crc[1] == (crc_tmp & 0xff)))//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È·ï¿½ï¿½ï¿½É´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 				{
 					if ((mb_buf[0] == _modbus.recv_addr) && (mb_buf[1] == _modbus.recv_flag))
 
 					{
-						//»ñÈ¡×´Ì¬Öµ
+						//ï¿½ï¿½È¡×´Ì¬Öµ
 						memcpy(_modbus.buf,mb_buf,_modbus.recv_len);
 						_modbus.recv_ok = 1;
 
@@ -248,7 +250,7 @@ void modbus_recv_thread(void)
 				case SM_MODBUS_RECV_DATA:
 					mb_buf[_modbus.recv_cnt] = rcvQ[i];
 					_modbus.recv_cnt++;
-					if (_modbus.recv_cnt >= _modbus.recv_len)//recv_len:²»º¬CRCµÄ°ü³¤¶È
+					if (_modbus.recv_cnt >= _modbus.recv_len)//recv_len:ï¿½ï¿½ï¿½ï¿½CRCï¿½Ä°ï¿½ï¿½ï¿½ï¿½ï¿½
 					{
 						_modbus.recv_sm = SM_MODBUS_RECV_CRC1;
 					}
@@ -265,11 +267,11 @@ void modbus_recv_thread(void)
 					_crc[1] = rcvQ[i];
 					crc_tmp = crc16(mb_buf, _modbus.recv_cnt);
 					//printf("recv crc: %x,%x; calc: %x,%x\n",(crc_tmp >> 8) & 0xff,(crc_tmp & 0xff),_crc[0],_crc[1]);
-					if ((_crc[0] == ((crc_tmp >> 8) & 0xff)) && (_crc[1] == (crc_tmp & 0xff)))//½âÎöÕýÈ·£¬¿É´¦ÀíÊý¾Ý
+					if ((_crc[0] == ((crc_tmp >> 8) & 0xff)) && (_crc[1] == (crc_tmp & 0xff)))//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È·ï¿½ï¿½ï¿½É´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 					{
 						if ((mb_buf[0] == _modbus.recv_addr) && (mb_buf[1] == _modbus.recv_flag))
 						{
-							//»ñÈ¡×´Ì¬Öµ
+							//ï¿½ï¿½È¡×´Ì¬Öµ
 
 							memcpy(_modbus.buf,mb_buf,_modbus.recv_len);
 							_modbus.recv_ok = 1;
@@ -534,7 +536,7 @@ void modbus_master_thread(void)
 	}
 }
 
-//²éÑ¯ÇÐ»»Æ÷Á½Â·µç³ØµçÑ¹¼°·Åµç×´Ì¬
+//ï¿½ï¿½Ñ¯ï¿½Ð»ï¿½ï¿½ï¿½ï¿½ï¿½Â·ï¿½ï¿½Øµï¿½Ñ¹ï¿½ï¿½ï¿½Åµï¿½×´Ì¬
 int modbus_get_switcher_state(T_SWITCHER_DATA* data, int timeout_ms)
 {
 	unsigned char buf[20];
@@ -543,14 +545,14 @@ int modbus_get_switcher_state(T_SWITCHER_DATA* data, int timeout_ms)
 	int _timeout_cnt;
 	unsigned short us_tmp;
 
-	//·¢ËÍ¸ñÊ½£º´ÓÕ¾µØÖ·(1B) | ¹¦ÄÜºÅ(1B) | ¼Ä´æÆ÷ÆðÊ¼µØÖ·(2B) | ¶ÁÈ¡µÄ¼Ä´æÆ÷Êý(2B) | CRC
-	//´Ë´¦£º SWITCHER_ADDR | 0x03 | 0x0, 0x0 | 0x0,0x4 | CRCH,CRCL
-	buf[0] = SWITCHER_ADDR;//´ÓÕ¾µØÖ·
-	buf[1] = 0x03;//¹¦ÄÜºÅ
+	//ï¿½ï¿½ï¿½Í¸ï¿½Ê½ï¿½ï¿½ï¿½ï¿½Õ¾ï¿½ï¿½Ö·(1B) | ï¿½ï¿½ï¿½Üºï¿½(1B) | ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½Ö·(2B) | ï¿½ï¿½È¡ï¿½Ä¼Ä´ï¿½ï¿½ï¿½ï¿½ï¿½(2B) | CRC
+	//ï¿½Ë´ï¿½ï¿½ï¿½ SWITCHER_ADDR | 0x03 | 0x0, 0x0 | 0x0,0x4 | CRCH,CRCL
+	buf[0] = SWITCHER_ADDR;//ï¿½ï¿½Õ¾ï¿½ï¿½Ö·
+	buf[1] = 0x03;//ï¿½ï¿½ï¿½Üºï¿½
 	buf[2] = 0x0;
-	buf[3] = 0x0;//[2][3]:ÆðÊ¼¼Ä´æÆ÷µØÖ·
+	buf[3] = 0x0;//[2][3]:ï¿½ï¿½Ê¼ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½Ö·
 	buf[4] = 0x0;
-	buf[5] = 0x4;//[4][5]:¶ÁÈ¡µÄ¼Ä´æÆ÷Êý£¨Ã¿¸ö¼Ä´æÆ÷2¸ö×Ö½Ú£©£¬Òò´Ë´Ë´¦Îª¶ÁÈ¡8¸ö×Ö½Ú
+	buf[5] = 0x4;//[4][5]:ï¿½ï¿½È¡ï¿½Ä¼Ä´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã¿ï¿½ï¿½ï¿½Ä´ï¿½ï¿½ï¿½2ï¿½ï¿½ï¿½Ö½Ú£ï¿½ï¿½ï¿½ï¿½ï¿½Ë´Ë´ï¿½Îªï¿½ï¿½È¡8ï¿½ï¿½ï¿½Ö½ï¿½
 	crc_tmp = crc16(buf, 6);
 	buf[6] = (crc_tmp >> 8) & 0xff;
 	buf[7] = crc_tmp & 0xff;
@@ -561,15 +563,15 @@ int modbus_get_switcher_state(T_SWITCHER_DATA* data, int timeout_ms)
 */
 	write(fd_modbus, buf, 8);
 
-	//Ô¤ÆÚ·µ»Ø£º´ÓÕ¾µØÖ·(1B) | ¹¦ÄÜºÅ(1B) | ·µ»ØÊý¾ÝµÄ×Ö½ÚÊý(1B) | 8×Ö½ÚµÄÊý¾Ý | CRCH,CRCL £¬²»ËãCRCÒ»¹²11¸ö×Ö½Ú
-	//´Ë´¦£ºSWITCHER_ADDR | 0x03 | 0x08 | 4*2×Ö½ÚµÄÊý¾Ý,Ã¿¸ö¼Ä´æÆ÷¸ßÎ»ÔÚÇ° | CRCH,CRCL
+	//Ô¤ï¿½Ú·ï¿½ï¿½Ø£ï¿½ï¿½ï¿½Õ¾ï¿½ï¿½Ö·(1B) | ï¿½ï¿½ï¿½Üºï¿½(1B) | ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ýµï¿½ï¿½Ö½ï¿½ï¿½ï¿½(1B) | 8ï¿½Ö½Úµï¿½ï¿½ï¿½ï¿½ï¿½ | CRCH,CRCL ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCÒ»ï¿½ï¿½11ï¿½ï¿½ï¿½Ö½ï¿½
+	//ï¿½Ë´ï¿½ï¿½ï¿½SWITCHER_ADDR | 0x03 | 0x08 | 4*2ï¿½Ö½Úµï¿½ï¿½ï¿½ï¿½ï¿½,Ã¿ï¿½ï¿½ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½Ç° | CRCH,CRCL
 	_modbus.recv_addr = SWITCHER_ADDR;
 	_modbus.recv_flag = 0x03;
-	_modbus.recv_len = 11;//·µ»Ø11¸ö×Ö½Ú£¨²»º¬CRC£©
+	_modbus.recv_len = 11;//ï¿½ï¿½ï¿½ï¿½11ï¿½ï¿½ï¿½Ö½Ú£ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
 	_modbus.recv_cnt = 0;
 	_modbus.recv_ok = 0;
 
-	_timeout_cnt = (int)(0.1 * timeout_ms);//½«ºÁÃë×ª»»Îªsleep´ÎÊý
+	_timeout_cnt = (int)(0.1 * timeout_ms);//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×ªï¿½ï¿½Îªsleepï¿½ï¿½ï¿½ï¿½
 	for (i = 0; i < _timeout_cnt; i++)
 	{
 		usleep(1000*10);//[10ms]
@@ -604,12 +606,12 @@ int modbus_set_switcher(unsigned short addr, unsigned short value, int timeout_m
 	int i = 0;
 	int _timeout_cnt;
 	
-	//·¢ËÍ¸ñÊ½£º´ÓÕ¾µØÖ·(1B) | ¹¦ÄÜºÅ(1B) | ¼Ä´æÆ÷ÆðÊ¼µØÖ·(2B) | ¼Ä´æÆ÷µÄÉèÖÃÖµ(2B) | CRC
-	//´Ë´¦£º SWITCHER_ADDR | 0x06 | addrH,addrL | valueH,valueL | CRCH,CRCL
+	//ï¿½ï¿½ï¿½Í¸ï¿½Ê½ï¿½ï¿½ï¿½ï¿½Õ¾ï¿½ï¿½Ö·(1B) | ï¿½ï¿½ï¿½Üºï¿½(1B) | ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½Ö·(2B) | ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Öµ(2B) | CRC
+	//ï¿½Ë´ï¿½ï¿½ï¿½ SWITCHER_ADDR | 0x06 | addrH,addrL | valueH,valueL | CRCH,CRCL
 	buf[0] = SWITCHER_ADDR;
-	buf[1] = 0x06;//ÉèÖÃÃüÁî
+	buf[1] = 0x06;//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	buf[2] = 0x0;
-	buf[3] = (unsigned char)addr;//ÇÐ»»Æ÷¼Ä´æÆ÷µØÖ·
+	buf[3] = (unsigned char)addr;//ï¿½Ð»ï¿½ï¿½ï¿½ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½Ö·
 	buf[4] = (unsigned char)((value>>8)&0xff);
 	buf[5] = (unsigned char)(value & 0xff);
 	crc_tmp = crc16(buf, 6);
@@ -621,10 +623,10 @@ int modbus_set_switcher(unsigned short addr, unsigned short value, int timeout_m
 	for (i = 0; i < 8; i++) _DBG_1("%x ",buf[i]);
 	_DBG_0("\n");
 */
-	//Ô¤ÆÚ·µ»ØÓë·¢ËÍÊý¾ÝÏàÍ¬£º´ÓÕ¾µØÖ·(1B) | ¹¦ÄÜºÅ(1B) | ¼Ä´æÆ÷ÆðÊ¼µØÖ·(2B) | ¼Ä´æÆ÷µÄÉèÖÃÖµ(2B) | CRC
+	//Ô¤ï¿½Ú·ï¿½ï¿½ï¿½ï¿½ë·¢ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¬ï¿½ï¿½ï¿½ï¿½Õ¾ï¿½ï¿½Ö·(1B) | ï¿½ï¿½ï¿½Üºï¿½(1B) | ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½Ö·(2B) | ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Öµ(2B) | CRC
 	_modbus.recv_addr = SWITCHER_ADDR;
 	_modbus.recv_flag = 0x06;
-	_modbus.recv_len = 6;//·µ»Ø6¸ö×Ö½Ú£¨²»º¬CRC£©
+	_modbus.recv_len = 6;//ï¿½ï¿½ï¿½ï¿½6ï¿½ï¿½ï¿½Ö½Ú£ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
 	_modbus.recv_cnt = 0;
 	_modbus.recv_ok = 0;
 	
@@ -646,8 +648,8 @@ int modbus_get_charger_state(T_CHARGER_DATA* data, int timeout_ms)
 	int _timeout_cnt;
 	unsigned short us_tmp;
 
-	//·¢ËÍ¸ñÊ½£º´ÓÕ¾µØÖ·(1B) | ¹¦ÄÜºÅ(1B) | ¼Ä´æÆ÷ÆðÊ¼µØÖ·(2B) | ¶ÁÈ¡µÄ¼Ä´æÆ÷Êý(2B) | CRC
-	//´Ë´¦£º CHARGER_ADDR | 0x03 | 0x0, 0x0 | 0x0,0x4 | CRCH,CRCL
+	//ï¿½ï¿½ï¿½Í¸ï¿½Ê½ï¿½ï¿½ï¿½ï¿½Õ¾ï¿½ï¿½Ö·(1B) | ï¿½ï¿½ï¿½Üºï¿½(1B) | ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½Ö·(2B) | ï¿½ï¿½È¡ï¿½Ä¼Ä´ï¿½ï¿½ï¿½ï¿½ï¿½(2B) | CRC
+	//ï¿½Ë´ï¿½ï¿½ï¿½ CHARGER_ADDR | 0x03 | 0x0, 0x0 | 0x0,0x4 | CRCH,CRCL
 	buf[0] = CHARGER_ADDR;
 	buf[1] = 0x03;
 	buf[2] = 0x0;
@@ -664,11 +666,11 @@ int modbus_get_charger_state(T_CHARGER_DATA* data, int timeout_ms)
 	for (i = 0; i < 8; i++) _DBG_1("%x ",buf[i]);
 	_DBG_0("\n");
 */
-	//Ô¤ÆÚ·µ»Ø£º´ÓÕ¾µØÖ·(1B) | ¹¦ÄÜºÅ(1B) | ·µ»ØÊý¾ÝµÄ×Ö½ÚÊý(1B) | 8×Ö½ÚµÄÊý¾Ý | CRCH,CRCL £¬²»ËãCRCÒ»¹²11¸ö×Ö½Ú
-	//´Ë´¦£ºCHARGER_ADDR | 0x03 | 0x08 | 4*2×Ö½ÚµÄÊý¾Ý,Ã¿¸ö¼Ä´æÆ÷¸ßÎ»ÔÚÇ° | CRCH,CRCL
+	//Ô¤ï¿½Ú·ï¿½ï¿½Ø£ï¿½ï¿½ï¿½Õ¾ï¿½ï¿½Ö·(1B) | ï¿½ï¿½ï¿½Üºï¿½(1B) | ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ýµï¿½ï¿½Ö½ï¿½ï¿½ï¿½(1B) | 8ï¿½Ö½Úµï¿½ï¿½ï¿½ï¿½ï¿½ | CRCH,CRCL ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCÒ»ï¿½ï¿½11ï¿½ï¿½ï¿½Ö½ï¿½
+	//ï¿½Ë´ï¿½ï¿½ï¿½CHARGER_ADDR | 0x03 | 0x08 | 4*2ï¿½Ö½Úµï¿½ï¿½ï¿½ï¿½ï¿½,Ã¿ï¿½ï¿½ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½Ç° | CRCH,CRCL
 	_modbus.recv_addr = CHARGER_ADDR;
 	_modbus.recv_flag = 0x03;
-	_modbus.recv_len = 11;//·µ»Ø11¸ö×Ö½Ú£¨²»º¬CRC£©
+	_modbus.recv_len = 11;//ï¿½ï¿½ï¿½ï¿½11ï¿½ï¿½ï¿½Ö½Ú£ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
 	_modbus.recv_cnt = 0;
 	_modbus.recv_ok = 0;
 	
@@ -713,12 +715,12 @@ int modbus_set_charger(unsigned short addr, unsigned short value, int timeout_ms
 	int i = 0;
 	int _timeout_cnt;
 
-	//·¢ËÍ¸ñÊ½£º´ÓÕ¾µØÖ·(1B) | ¹¦ÄÜºÅ(1B) | ¼Ä´æÆ÷ÆðÊ¼µØÖ·(2B) | ¼Ä´æÆ÷µÄÉèÖÃÖµ(2B) | CRC
-	//´Ë´¦£º CHARGER_ADDR | 0x06 | addrH,addrL | valueH,valueL | CRCH,CRCL
+	//ï¿½ï¿½ï¿½Í¸ï¿½Ê½ï¿½ï¿½ï¿½ï¿½Õ¾ï¿½ï¿½Ö·(1B) | ï¿½ï¿½ï¿½Üºï¿½(1B) | ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½Ö·(2B) | ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Öµ(2B) | CRC
+	//ï¿½Ë´ï¿½ï¿½ï¿½ CHARGER_ADDR | 0x06 | addrH,addrL | valueH,valueL | CRCH,CRCL
 	buf[0] = CHARGER_ADDR;
 	buf[1] = 0x06;
 	buf[2] = 0x0;
-	buf[3] = (unsigned char)addr;//ÇÐ»»Æ÷¼Ä´æÆ÷µØÖ·
+	buf[3] = (unsigned char)addr;//ï¿½Ð»ï¿½ï¿½ï¿½ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½Ö·
 	buf[4] = (unsigned char)((value >> 8) & 0xff);
 	buf[5] = (unsigned char)(value & 0xff);
 	crc_tmp = crc16(buf, 6);
@@ -731,10 +733,10 @@ int modbus_set_charger(unsigned short addr, unsigned short value, int timeout_ms
 	for (i = 0; i < 8; i++) _DBG_1("%x ",buf[i]);
 	_DBG_0("\n");
 */
-	//Ô¤ÆÚ·µ»ØÓë·¢ËÍÊý¾ÝÏàÍ¬£º´ÓÕ¾µØÖ·(1B) | ¹¦ÄÜºÅ(1B) | ¼Ä´æÆ÷ÆðÊ¼µØÖ·(2B) | ¼Ä´æÆ÷µÄÉèÖÃÖµ(2B) | CRC
+	//Ô¤ï¿½Ú·ï¿½ï¿½ï¿½ï¿½ë·¢ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¬ï¿½ï¿½ï¿½ï¿½Õ¾ï¿½ï¿½Ö·(1B) | ï¿½ï¿½ï¿½Üºï¿½(1B) | ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½Ö·(2B) | ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Öµ(2B) | CRC
 	_modbus.recv_addr = CHARGER_ADDR;
 	_modbus.recv_flag = 0x06;
-	_modbus.recv_len = 6;//·µ»Ø6¸ö×Ö½Ú£¨²»º¬CRC£©
+	_modbus.recv_len = 6;//ï¿½ï¿½ï¿½ï¿½6ï¿½ï¿½ï¿½Ö½Ú£ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
 	_modbus.recv_cnt = 0;
 	_modbus.recv_ok = 0;
 	
@@ -1035,7 +1037,7 @@ void modbus_polling()
 		{	
 			us_tmp = CHARGER_CURRENT_DFT * 10;
 		}
-		ret = modbus_set_charger(0x11, us_tmp, MODBUS_TIMEOUT_MS);//ÉèÖÃµçÁ÷:ÏòµØÖ·0x10Ð´µçÁ÷£¬µ¥Î»[0.1A]
+		ret = modbus_set_charger(0x11, us_tmp, MODBUS_TIMEOUT_MS);//ï¿½ï¿½ï¿½Ãµï¿½ï¿½ï¿½:ï¿½ï¿½ï¿½Ö·0x10Ð´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Î»[0.1A]
 		if (ret > 0)
 		{
 			charger_sm = SM_CHARGER_TURNON;
@@ -1049,14 +1051,14 @@ void modbus_polling()
 		}
 		break;
 	case SM_CHARGER_TURNON:
-		ret = modbus_set_charger(0x12, 0, MODBUS_TIMEOUT_MS);//¿ª»ú
+		ret = modbus_set_charger(0x12, 0, MODBUS_TIMEOUT_MS);//ï¿½ï¿½ï¿½ï¿½
 		if (ret > 0)
 		{
 			charger_sm = SM_CHARGER_QUARY;
 			gblState.charge_time=0;//[2second]
 		}
 		break;
-	case SM_CHARGER_QUARY://³äµçÖÐµÄ×´Ì¬²éÑ¯
+	case SM_CHARGER_QUARY://ï¿½ï¿½ï¿½ï¿½Ðµï¿½×´Ì¬ï¿½ï¿½Ñ¯
 		if(gblState.charger_quary_ok==1)
 		{
 			if(charger_state.work_chan>0) gblState.charge_time++;//calc the charging time.

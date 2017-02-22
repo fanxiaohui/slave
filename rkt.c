@@ -14,6 +14,7 @@
 #include "rkt.h"
 #include "log.h"
 #include "global.h"
+#include "uart.h"
 
 #define SM_RKT_RECV_HEAD1 0
 #define SM_RKT_RECV_HEAD2 1
@@ -71,7 +72,7 @@ int rkt_init(void)
 	fp_rkt = fopen(file_name, "wb+");
 	if (NULL == fp_rkt)
 	{
-		sprintf(logmsg, "Open RKT rec file failed: %d", fp_rkt);
+		sprintf(logmsg, "Open RKT rec file failed: %d", (int)fp_rkt);
 		write_log(logmsg);
 		rkt_file_opened = 0;//û��������
 	}
